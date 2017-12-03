@@ -1,4 +1,8 @@
 from bandit import ArmBernoulli, Bandit
+from algorithms import MCTopM
+import numpy as np
+
+random_state = np.random.randint(1, 312414)
 
 arm1 = ArmBernoulli(0.55, random_state=random_state)
 arm2 = ArmBernoulli(0.50, random_state=random_state)
@@ -12,3 +16,8 @@ arm9 = ArmBernoulli(0.15, random_state=random_state)
 arm10 = ArmBernoulli(0.10, random_state=random_state)
 
 arms = Bandit([arm1, arm2, arm3, arm4, arm5, arm6, arm7, arm8, arm9, arm10])
+nb_player = 4
+model = 1
+
+game1 = MCTopM(nb_player, model, arms)
+print game1.lauch_game(10000)

@@ -29,4 +29,3 @@ class Multiplayer(object):
                     collisions[j] = True
 
         return rewards, Y, collisions
-
