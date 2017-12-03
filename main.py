@@ -10,3 +10,5 @@ arm7 = ArmBernoulli(0.25, random_state=random_state)
 arm8 = ArmBernoulli(0.20, random_state=random_state)
 arm9 = ArmBernoulli(0.15, random_state=random_state)
 arm10 = ArmBernoulli(0.10, random_state=random_state)
+
+arms = Bandit([arm1, arm2, arm3, arm4, arm5, arm6, arm7, arm8, arm9, arm10])

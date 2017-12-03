@@ -30,10 +30,10 @@ class ArmBernoulli(AbstractArm):
                                            random_state=random_state)
 
     def sample(self):
-        return self.local_random.rand(1) < self.p
+        return int(self.local_random.rand(1) < self.p)
 
 class Bandit(object):
     def __init__(self, list_arms):
         self.list_arms = list_arms
-        self.nb_arms = len(MAB)
-        self.means = [el.mean for el in MAB]
+        self.nb_arms = len(list_arms)
+        self.means = [el.mean for el in list_arms]
