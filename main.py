@@ -1,5 +1,5 @@
 from bandit import ArmBernoulli, Bandit
-from algorithms import MCTopM, MC
+from algorithms import MCTopM, MC, RhoRand
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -25,5 +25,10 @@ model = 1
 
 game2 = MC(nbPlayers = nb_player, model = 1, MAB = arms,T0 = 10, T1 = 100)
 game2.launch_game()
-plt.plot(np.cumsum(game2.regret))
+plt.plot(np.cumsum(game2.regret), c= 'b')
+
+game3 = RhoRand(nbPlayers = nb_player, model = 1, MAB = arms)
+game3.launch_game(100)
+plt.plot(np.cumsum(game3.regret), c= 'r')
+
 plt.show()

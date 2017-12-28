@@ -145,6 +145,88 @@ class MC(object):
         self.initialisation()
         self.musical_chair()
 
+class RhoRand(object):
+    """ This class is exactly the algo described in "Distributed Algorithm for Learning and Cognitive Medium
+    Access with Logarithmic Regret" in the part with a known number of player """
+    def __init__(self, nbPlayers, model, MAB):
+        self.multiplayer = Multiplayer(nbPlayers, MAB, model)
+        self.nbPlayers = nbPlayers # To be able to compare with the estimation of nb of players we are going to make
+        self.C = MAB.nb_arms  # the total number of arms
+        self.channel_initialised = [[] for j in range(self.nbPlayers)]
+
+
+        self.T = np.zeros([nbPlayers, self.C]) # nb of time an arm is drawn
+        self.s = np.zeros([nbPlayers, self.C])  # cumulated reward for each player and each arm
+        self.X = np.zeros([nbPlayers, self.C]) # estimated reward for each arm
+        self.g = np.zeros([nbPlayers, self.C])
+
+        self.A = np.zeros([nbPlayers, self.C]) # is going to contain the arms ranked
+        self.Cur_rank = [1 for i in range(nbPlayers)] # Rank chosen by the player
+        self.Curr_selected = [0 for i in range(nbPlayers)] # Arm chosen dur to the rank
+
+        self.collision = [False for i in range(nbPlayers)] # Collisions
+        self.t = 0 # just to know the iterations nb
+
+        self.regret = list() # to keep the total regret at each step
+        self.max = np.sum(-np.sort(-np.asarray(MAB.means))[0:self.nbPlayers]) # mean of the max result : nbPlayers best arms chosen
+
+    def initialisation(self):
+        while self.t < self.C:
+            self.t += 1
+            for j in range(self.nbPlayers):
+                # We explore every channel
+                i = rd.randint(0, self.C - 1)
+                while i in self.channel_initialised[j]:
+                    i = rd.randint(0, self.C - 1)
+                self.Curr_selected[j] = i
+                self.channel_initialised[j].append(i)
+            print self.Curr_selected
+            rew, Y, self.collision = self.multiplayer.draw(self.Curr_selected)
+            self.regret.append(self.max - sum(rew)) # keep the regret in mind for all the process
+            for j in range(self.nbPlayers):
+                self.s[j, self.Curr_selected[j]] += rew[j]
+                self.T[j, self.Curr_selected[j]] += 1.
+
+        # We estimate the  Xj
+        self.X = np.asarray([[float(s)/float(t) for s, t in zip(self.s[j], self.T[j])] for j in range(self.nbPlayers)])
+        self.collision = [False for i in range(self.nbPlayers)]
+
+    def bound_estimate(self):
+        for j in range(self.nbPlayers):
+            for i in range(self.C):
+                self.g[j, i] = self.X[j, i] + min(math.sqrt(math.log(float(self.t))/float(2*self.T[j, i])), 1)
+
+    def rhoRhand(self, horizon):
+        self.bound_estimate()
+        self.A = np.argsort(-self.g) # we rank the arms
+        self.Curr_selected = [int(self.A[j, int(k)]) for k, j in zip(self.Cur_rank, range(self.nbPlayers))]
+        while self.t < horizon:
+            self.t += 1
+            rew, Y, self.collision = self.multiplayer.draw(self.Curr_selected)
+            self.regret.append(self.max - sum(rew))  # keep the regret in mind for all the process
+            for j in range(self.nbPlayers):
+                self.s[j, self.Curr_selected[j]] += rew[j]
+                self.T[j, self.Curr_selected[j]] += 1.
+
+                if self.collision[j]: # if there was a collision, we change the rank chosen
+                    self.Cur_rank[j] = rd.randint(0, self.nbPlayers - 1)
+            # We estimate the  Xj
+            self.X = np.asarray([[s / t for s, t in zip(self.s[j], self.T[j])] for j in range(self.nbPlayers)])
+            self.bound_estimate()
+            self.A = np.argsort(-self.g)  # we rank the arms
+            self.Curr_selected = [int(self.A[j, int(k)]) for k, j in zip(self.Cur_rank, range(self.nbPlayers))]# next arms to be selected
+
+    def launch_game(self, horizon):
+        self.initialisation()
+        self.rhoRhand(horizon)
+
+
+
+
+
+
+
+
 
 
 
