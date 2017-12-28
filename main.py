@@ -1,6 +1,7 @@
 from bandit import ArmBernoulli, Bandit
-from algorithms import MCTopM
+from algorithms import MCTopM, MC
 import numpy as np
+import matplotlib.pyplot as plt
 
 random_state = np.random.randint(1, 312414)
 
@@ -19,5 +20,10 @@ arms = Bandit([arm1, arm2, arm3, arm4, arm5, arm6, arm7, arm8, arm9, arm10])
 nb_player = 4
 model = 1
 
-game1 = MCTopM(nb_player, model, arms)
-print game1.lauch_game(10000)
+#game1 = MCTopM(nb_player, model, arms)
+#print game1.lauch_game(10000)
+
+game2 = MC(nbPlayers = nb_player, model = 1, MAB = arms,T0 = 10, T1 = 100)
+game2.launch_game()
+plt.plot(np.cumsum(game2.regret))
+plt.show()

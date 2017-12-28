@@ -6,7 +6,8 @@ class Multiplayer(object):
         self.M = nbPlayers
         self.MAB = MAB
         self.model = model # this is going to be equal to 1 or 2 : it depends if we choose
-        # if the players observe only Y and reward (so also C if Y = 1) or Y and C
+                            # model 1 : if the players observe only Y and reward (so also C if Y = 1)
+                            # model 2 : if the players observe  Y and C
 
     def draw(self, list_arms_chosen):
         rewards = [0. for i in range(self.M)]
