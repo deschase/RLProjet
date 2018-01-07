@@ -19,6 +19,10 @@ class MCTopM(object):
         self.estim1 = np.zeros([nbPlayers, MAB.nb_arms])
         self.estim2 = np.zeros([nbPlayers, MAB.nb_arms])
 
+        self.regret = list()  # to keep the total regret at each step
+        self.max = np.sum(
+            -np.sort(-np.asarray(MAB.means))[0:self.nbPlayers])  # mean of the max result : nbPlayers best arms chosen
+
     def choose_arms(self):
         """ Choose the next arms to select for each player"""
         # for self.t == 0, we just take the A randomly (in the initialization)
@@ -63,11 +67,12 @@ class MCTopM(object):
     def play_arms(self):
         """ Draw the selected arms for each player and get he info from this draw"""
         rew, Y, self.C = self.multiplayer.draw(self.A)
+        self.regret.append(self.max - sum(rew))
         for j in range(self.nbPlayers):
             self.S[j, self.A[j]] += Y[j]
             self.T[j, self.A[j]] += 1
 
-    def lauch_game(self, horizon):
+    def launch_game(self, horizon):
         """ Launch the algorithm on a time horizon and return the last arms chosen """
         while self.t < horizon:
             self.choose_arms()
@@ -180,7 +185,6 @@ class RhoRand(object):
                     i = rd.randint(0, self.C - 1)
                 self.Curr_selected[j] = i
                 self.channel_initialised[j].append(i)
-            print self.Curr_selected
             rew, Y, self.collision = self.multiplayer.draw(self.Curr_selected)
             self.regret.append(self.max - sum(rew)) # keep the regret in mind for all the process
             for j in range(self.nbPlayers):
@@ -219,6 +223,121 @@ class RhoRand(object):
     def launch_game(self, horizon):
         self.initialisation()
         self.rhoRhand(horizon)
+
+
+class MCTopM_with_nbplayer_estim(object):
+    """ This class is exactly the same as MCTopM above, but with no knowledge of the nb of players
+    which is estimated at each draw with the estimator given in the rhorand article for the rhoest algorithm"""
+    def __init__(self, nbPlayers, model, MAB, w):
+        """
+
+        :param nbPlayers: number of players
+        :param model: model chosen (1, 2 or 3)
+        :param MAB: Multi armed bandit used
+        :param w: parameter for the lower bound of the nbof players estimator (w*log(horizon))
+        """
+        self.multiplayer = Multiplayer(nbPlayers, MAB, model)
+        self.nbPlayers = nbPlayers
+        self.U = np.asarray([1 for i in range(self.nbPlayers)]) # the estimated nb of players for each player
+        self.collision_count = np.zeros([self.nbPlayers, MAB.nb_arms]) # n of collision for each arms that will be set to 0 each time we update U
+        self.s = [False for i in range(nbPlayers)]
+        self.A = [rd.randint(0, MAB.nb_arms - 1) for i in range(nbPlayers)]
+        self.C = [False for i in range(nbPlayers)]
+        self.t = 0 # just to know the iterations nb
+        self.M = [[] for i in range(self.nbPlayers)] # the U best arms at each row
+        self.w = w# parameter to estimate the nb of players
+        # all the things to compute self.M :
+        self.T = np.zeros([nbPlayers, MAB.nb_arms])
+        self.S = np.zeros([nbPlayers, MAB.nb_arms])
+        self.estim1 = np.zeros([nbPlayers, MAB.nb_arms])
+        self.estim2 = np.zeros([nbPlayers, MAB.nb_arms])
+        self.horizon = 0
+
+        self.regret = list()  # to keep the total regret at each step
+        self.max = np.sum(
+            -np.sort(-np.asarray(MAB.means))[0:self.nbPlayers])  # mean of the max result : nbPlayers best arms chosen
+
+    def choose_arms(self):
+        """ Choose the next arms to select for each player"""
+        # for self.t == 0, we just take the A randomly (in the initialization)
+        if self.t != 0:
+            for j in range(self.nbPlayers):
+                if not (self.A[j] in self.M[j]):
+                    set_possib = [k for k in self.M[j] if (self.estim1[j,k] <= self.estim1[j, self.A[j]])]
+                    self.A[j] = rd.choice(set_possib)
+                    self.s[j] = False
+                elif self.C[j] and not self.s[j]:
+                    self.A[j] = rd.choice(self.M[j])
+                    self.s[j] = False
+                else:
+                    self.A[j] = self.A[j]
+                    self.s[j] = True
+
+    def logUCB(self, j_play):
+        """
+        We calculate the bound value for ucb.
+        :param j_play: the nb of the player that we calculate the estimated bounds of
+        :return: computes the bounds in estim2 and keep the old ones in estim1
+        """
+        for k in range(self.multiplayer.MAB.nb_arms):
+            self.estim1[j_play,k] = self.estim2[j_play,k]
+            if self.T[j_play,k] != 0:
+                mu_k = self.S[j_play,k]/float(self.T[j_play,k])
+                self.estim2[j_play,k] = mu_k + np.sqrt((np.log(self.t)/(2*self.T[j_play,k]))) # for the moment we only coded with UCB1 : to test with kl-UCB
+            else:
+                self.estim2[j_play,k] = 1000000 # to make sure we test all the arms
+
+    def compute_estim(self):
+        """ Compute the bounds for each player """
+        for j in range(self.nbPlayers):
+            self.logUCB(j)
+
+    def compute_M(self):
+        """ Computes the M best arms for each player """
+        for j in range(self.nbPlayers):
+            for a in range(self.nbPlayers):
+                self.M[j] = np.argsort(self.estim2[j,:])[::-1][:self.U[j]]
+
+    def play_arms(self):
+        """ Draw the selected arms for each player and get he info from this draw"""
+        rew, Y, self.C = self.multiplayer.draw(self.A)
+        self.regret.append(self.max - sum(rew))
+        for j in range(self.nbPlayers):
+            self.S[j, self.A[j]] += Y[j]
+            self.T[j, self.A[j]] += 1
+            self.collision_count[j, self.A[j]] += 1
+
+    def estim_U(self):
+        for j in range(self.nbPlayers):
+            collision_total = sum([self.collision_count[j, arm] for arm in self.M[j]]) # we sum the collisions on the actual best U arms
+            print "total collision:", j, collision_total
+            estim = 0.
+            if self.U[j] == 1:
+                estim = 1.
+            else:
+                estim = float(self.t)*0.8
+            print "estimator,", estim
+            if collision_total > estim:
+                self.U[j] += 1
+                for arm in self.M[j]:
+                    self.collision_count[j, arm] = 0.
+
+
+
+    def launch_game(self, horizon):
+        """ Launch the algorithm on a time horizon and return the last arms chosen """
+        self.horizon = horizon
+        while self.t < horizon:
+            self.choose_arms()
+            self.t += 1
+            self.play_arms()
+            self.compute_estim()
+            self.compute_M() # we compute the U best arms a first time
+            self.estim_U() # based on that we make an estimation of the nb of players for each player
+            print self.U
+            self.compute_M() # we compute the Unew best arms for each player
+        return self.A
+
 
 
 
